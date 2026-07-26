@@ -70,10 +70,14 @@ O pipeline foi testado com misconfigurations intencionais:
 - Imagem Docker `python:3.9` com CVEs conhecidos → Trivy detecta e bloqueia
 - Deploy não executa
 
+![Pipeline falhando](docs/images/pipeline-error.png)
+
 **Commit 2 — pipeline passando após correções:**
 - Bucket S3 com todas as configurações de segurança aplicadas
 - Imagem Docker atualizada para `python:3.13-slim` sem CVEs com fix disponível
 - Todos os gates verdes → Deploy liberado
+
+![Pipeline passando](docs/images/pipeline-success.png)
 
 ---
 

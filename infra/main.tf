@@ -121,6 +121,10 @@ resource "aws_s3_bucket_notification" "example" {
 
 # ─── BUCKET DE LOG ──────────────────────────────────────────────────────────
 
+# checkov:skip=CKV_AWS_144: Bucket de log não requer replicação cross-region.
+# Logs de acesso são dados operacionais, não dados de negócio — replicá-los
+# criaria dependência circular (o bucket replica também precisaria de log).
+# Decisão arquitetural documentada e aceita.
 resource "aws_s3_bucket" "log_bucket" {
   bucket = "${var.bucket_name}-logs"
 
@@ -252,6 +256,85 @@ resource "aws_s3_bucket_notification" "replica" {
   provider    = aws.replica
   bucket      = aws_s3_bucket.replica.id
   eventbridge = true
+}
+
+# Bucket de log dedicado para a região replica
+resource "aws_s3_bucket" "replica_log_bucket" {
+  provider = aws.replica
+  bucket   = "${var.bucket_name}-replica-logs"
+
+  tags = {
+    Environment = "dev"
+    Project     = "pipeline-security-gates"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "replica_log_bucket" {
+  provider = aws.replica
+  bucket   = aws_s3_bucket.replica_log_bucket.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "aws:kms"
+    }
+  }
+}
+
+resource "aws_s3_bucket_versioning" "replica_log_bucket" {
+  provider = aws.replica
+  bucket   = aws_s3_bucket.replica_log_bucket.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "replica_log_bucket" {
+  provider = aws.replica
+  bucket   = aws_s3_bucket.replica_log_bucket.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# checkov:skip=CKV_AWS_144: Bucket de log da replica não requer replicação cross-region.
+# Mesma razão arquitetural do log_bucket principal — logs são dados operacionais.
+resource "aws_s3_bucket_lifecycle_configuration" "replica_log_bucket" {
+  provider = aws.replica
+  bucket   = aws_s3_bucket.replica_log_bucket.id
+
+  rule {
+    id     = "expire-replica-logs"
+    status = "Enabled"
+
+    expiration {
+      days = 90
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 30
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+}
+
+resource "aws_s3_bucket_notification" "replica_log_bucket" {
+  provider    = aws.replica
+  bucket      = aws_s3_bucket.replica_log_bucket.id
+  eventbridge = true
+}
+
+# CKV_AWS_18: Access logging do bucket replica
+resource "aws_s3_bucket_logging" "replica" {
+  provider      = aws.replica
+  bucket        = aws_s3_bucket.replica.id
+  target_bucket = aws_s3_bucket.replica_log_bucket.id
+  target_prefix = "logs/"
 }
 
 # ─── IAM REPLICATION ROLE ───────────────────────────────────────────────────

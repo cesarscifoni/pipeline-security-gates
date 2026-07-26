@@ -1,0 +1,75 @@
+name: Security Pipeline
+
+on:
+  push:
+    branches: ["main", "develop"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  # Job 1: Scan de secrets no código
+  secret-scan:
+    name: Secret Scan (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Job 2: Scan de IaC com Checkov
+  iac-scan:
+    name: IaC Scan (Checkov)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: infra/
+          framework: terraform
+          soft_fail: false
+          output_format: cli
+
+  # Job 3: Scan de imagem Docker com Trivy
+  container-scan:
+    name: Container Scan (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t security-demo:latest .
+
+      - name: Run Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: security-demo:latest
+          format: table
+          exit-code: 1
+          severity: CRITICAL,HIGH
+
+  # Job 4: Deploy — só roda se todos os scans passarem
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    needs: [secret-scan, iac-scan, container-scan]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy simulado
+        run: |
+          echo "✅ Todos os security gates passaram!"
+          echo "✅ Deploy autorizado para produção"
+          echo "Branch: ${{ github.ref }}"
+          echo "Commit: ${{ github.sha }}"

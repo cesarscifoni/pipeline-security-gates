@@ -1,0 +1,18 @@
+# Credenciais e segredos
+.env
+*.env
+.env.*
+credentials
+*.pem
+*.key
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+*.tfvars
+
+# OS
+.DS_Store
+Thumbs.db

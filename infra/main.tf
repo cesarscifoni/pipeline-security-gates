@@ -121,11 +121,8 @@ resource "aws_s3_bucket_notification" "example" {
 
 # ─── BUCKET DE LOG ──────────────────────────────────────────────────────────
 
-# checkov:skip=CKV_AWS_144: Bucket de log não requer replicação cross-region.
-# Logs de acesso são dados operacionais, não dados de negócio — replicá-los
-# criaria dependência circular (o bucket replica também precisaria de log).
-# Decisão arquitetural documentada e aceita.
 resource "aws_s3_bucket" "log_bucket" {
+  #checkov:skip=CKV_AWS_144: Log bucket does not require cross-region replication. Access logs are operational data, not business data. Replicating them would create a circular dependency.
   bucket = "${var.bucket_name}-logs"
 
   tags = {
@@ -260,6 +257,7 @@ resource "aws_s3_bucket_notification" "replica" {
 
 # Bucket de log dedicado para a região replica
 resource "aws_s3_bucket" "replica_log_bucket" {
+  #checkov:skip=CKV_AWS_144: Replica log bucket does not require cross-region replication. Same architectural reason as log_bucket — operational data only.
   provider = aws.replica
   bucket   = "${var.bucket_name}-replica-logs"
 
